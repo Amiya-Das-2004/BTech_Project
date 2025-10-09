@@ -1,12 +1,11 @@
 using Gridap, Gridap.Geometry, Gridap.Adaptivity, Gridap.MultiField, Gridap.TensorValues
-# using GridapEmbedded, GridapEmbedded.LevelSetCutters
-# using GridapSolvers, GridapSolvers.BlockSolvers, GridapSolvers.NonlinearSolvers
+using GridapEmbedded, GridapEmbedded.LevelSetCutters
+using GridapSolvers, GridapSolvers.BlockSolvers, GridapSolvers.NonlinearSolvers
 using GridapGmsh
-# using GridapDistributed
-# using PartitionedArrays
-# using GridapPETSc
+using GridapDistributed
+using PartitionedArrays
+using GridapPETSc
 using GridapTopOpt
-
 using GridapTopOpt: StateParamMap
 
 """
@@ -33,13 +32,13 @@ using GridapTopOpt: StateParamMap
 function main(ranks)
   # Params
   vf =  0.3
-  γ_evo = 0.1
+  γ_evo = 0.1 
   max_steps = 10
   α_coeff = γ_evo*max_steps
   iter_mod = 50
   D = 3
   mesh_name = "Wheel_3d.msh"
-  mesh_file = (@__DIR__)*"/Meshes/$mesh_name"
+  mesh_file = (@__DIR__)*"/Models/$mesh_name"
 
   # Output path
   path = "./results/Wheel3D_CutFEM/"
