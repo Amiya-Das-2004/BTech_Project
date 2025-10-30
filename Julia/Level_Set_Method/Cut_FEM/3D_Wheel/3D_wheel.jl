@@ -222,7 +222,7 @@ end
 
 ## Run
 with_mpi() do distribute
-  ncpus = 48
+  ncpus = 2
   ranks = distribute(LinearIndices((ncpus,)))
   petsc_options = "-ksp_converged_reason -ksp_error_if_not_converged true -pc_type lu -pc_factor_mat_solver_type superlu_dist"
   GridapPETSc.with(;args=split(petsc_options)) do
