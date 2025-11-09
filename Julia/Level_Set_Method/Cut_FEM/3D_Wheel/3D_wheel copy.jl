@@ -30,7 +30,7 @@ using GridapTopOpt: StateParamMap
       j(d,s) = ∫ γh³[[∇(d)⋅n_Γg]]⋅[[(∇(s)⋅n_Γg]] dΓg, &
       i(d,s) = ∫ χd ⋅ s dΩ.
 """
-function main(ranks)
+function main()
   # Params
   vf =  0.3
   γ_evo = 0.1
@@ -39,18 +39,21 @@ function main(ranks)
   iter_mod = 50
   D = 3
   mesh_name = "Wheel_3d.msh"
-  mesh_file = (@__DIR__)*"/Meshes/$mesh_name"
+  mesh_file = (@__DIR__)*"/Models/$mesh_name"
 
   # Output path
-  path = "./results/Wheel3D_CutFEM/"
-  files_path = path*"data/"
-  model_path = path*"model/"
-  if i_am_main(ranks)
-    mkpath(files_path); mkpath(model_path);
-  end
+  path = "../../../../../Result/3D_Wheel"
+
+  #  Directory to store visualization file
+  files_path = path*"_data/"
+  isdir(files_path) || mkpath(files_path)
+
+  #  Directory to store optimized model
+  model_path = path*"_model/"
+  isdir(model_path) || mkpath(model_path)
 
   # Load mesh
-  model = GmshDiscreteModel(ranks,mesh_file)
+  model = GmshDiscreteModel(mesh_file)
   model = UnstructuredDiscreteModel(model)
   f_diri(x) =
     ((cos(30π/180)<=x[1]<=cos(15π/180)) && abs(x[2] - sqrt(1-x[1]^2))<1e-4) ||
@@ -160,8 +163,8 @@ function main(ranks)
 
   ## Evolution Method
   evolve_ls = PETScLinearSolver()
-  evolve_nls = NewtonSolver(evolve_ls;maxiter=1,verbose=i_am_main(ranks))
-  reinit_nls = NewtonSolver(PETScLinearSolver();maxiter=20,rtol=1.e-14,verbose=i_am_main(ranks))
+  evolve_nls = NewtonSolver(evolve_ls;maxiter=1)
+  reinit_nls = NewtonSolver(PETScLinearSolver();maxiter=20,rtol=1.e-14)
 
   evo = CutFEMEvolver(V_φ,Ω_data,dΩ_bg,hₕ;max_steps,γg=0.01,ode_ls=evolve_ls,ode_nl=evolve_nls)
   reinit = StabilisedReinitialiser(V_φ,Ω_data,dΩ_bg,hₕ;stabilisation_method=ArtificialViscosity(0.5),nls=reinit_nls)
@@ -180,7 +183,7 @@ function main(ranks)
     C_tol = 0.01
   )
   optimiser = AugmentedLagrangian(pcf,ls_evo,vel_ext,φh;
-    γ=γ_evo,verbose=i_am_main(ranks),constraint_names=[:Vol],converged)
+    γ=γ_evo,constraint_names=[:Vol],converged)
   for (it,uh,φh) in optimiser
     if iszero(it % iter_mod)
       writevtk(Ω_bg,files_path*"Omega_act_$it",
@@ -188,7 +191,7 @@ function main(ranks)
       writevtk(Ω_data.Ω,files_path*"Omega_in_$it",cellfields=["uh"=>uh])
     end
     psave(files_path*"LSF_$it",get_free_dof_values(φh))
-    write_history(path*"/history.txt",optimiser.history;ranks)
+    write_history(path*"/history.txt",optimiser.history)
   end
   it = get_history(optimiser).niter; uh = get_state(pcf)
   writevtk(Ω_bg,path*"Omega_act_$it",cellfields=["φ"=>φh,"|∇(φ)|"=>(norm ∘ ∇(φh)),"uh"=>uh,"ψ"=>Ω_data.ψ])
@@ -197,35 +200,4 @@ function main(ranks)
   nothing
 end
 
-## CG-AMG solver
-CGAMGSolver(;kwargs...) = PETScLinearSolver(gamg_ksp_setup(;kwargs...))
-
-function gamg_ksp_setup(;rtol=10^-8,maxits=100)
-
-  function ksp_setup(ksp)
-    pc = Ref{GridapPETSc.PETSC.PC}()
-
-    rtol = PetscScalar(rtol)
-    atol = GridapPETSc.PETSC.PETSC_DEFAULT
-    dtol = GridapPETSc.PETSC.PETSC_DEFAULT
-    maxits = PetscInt(maxits)
-
-    @check_error_code GridapPETSc.PETSC.KSPSetType(ksp[],GridapPETSc.PETSC.KSPCG)
-    @check_error_code GridapPETSc.PETSC.KSPSetTolerances(ksp[], rtol, atol, dtol, maxits)
-    @check_error_code GridapPETSc.PETSC.KSPGetPC(ksp[],pc)
-    @check_error_code GridapPETSc.PETSC.PCSetType(pc[],GridapPETSc.PETSC.PCGAMG)
-    @check_error_code GridapPETSc.PETSC.KSPView(ksp[],C_NULL)
-  end
-
-  return ksp_setup
-end
-
-## Run
-with_mpi() do distribute
-  ncpus = 1
-  ranks = distribute(LinearIndices((ncpus,)))
-  petsc_options = "-ksp_converged_reason -ksp_error_if_not_converged true -pc_type lu -pc_factor_mat_solver_type superlu_dist"
-  GridapPETSc.with(;args=split(petsc_options)) do
-    main(ranks)
-  end
-end
+main()
